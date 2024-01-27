@@ -68,6 +68,9 @@ void func_exit(){
     send(sock, (char*)&q, MAX,0);
     struct answer a = (struct answer){0,0,0,0,{0}};
     recv(sock, (char*)&a, MAX,0);
+    for (int i = 0; i < a.sizeOfAnswer; i++) {
+        printf("%c", a.sentence[i]);
+    }
 }
 
 int main()

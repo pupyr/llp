@@ -24,11 +24,3 @@ add_executable(llp_xml_client
         transport.h
         xml.h
 )
-
-add_executable(llp_test_xml
-        xml.c
-        xml.h
-        client.c
-        client.h
-        transport.h
-)

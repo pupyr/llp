@@ -79,13 +79,13 @@ void func(int connfd)
                 break;
             }
             case 5:{
-                struct answer a2 = (struct answer){0,0,0,0,{0}};
+//              struct answer a2 = (struct answer){0,0,0,0,{0}};
                 //printer(&a2);
                 //printMap(&a2);
-                findInformation("<xs:restrictionbase=\"xs:noFixedFacet\"> (1=341);",&a2);
-                for(int i=0; i<a2.sizeOfAnswer; i++){
-                    printf("%c",a2.sentence[i]);
-                }
+                findInformation("<xs:restrictionbase=\"xs:noFixedFacet\"> (1=341);",&a);
+//                for(int i=0; i<a2.sizeOfAnswer; i++){
+//                    printf("%c",a2.sentence[i]);
+//                }
                 exitStatus=0;
                 break;
             }
