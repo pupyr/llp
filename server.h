@@ -8,8 +8,11 @@
 #include <stdio.h>
 #include <WinSock2.h>
 #include <unistd.h>
-#include "transport.h"
 #include "reader.h"
+#include "alloc.h"
+#include "fileStruct.h"
+#include "parser.h"
+#include "transport.h"
 #define SA struct sockaddr
 SOCKET sock;
 

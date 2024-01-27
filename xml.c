@@ -6,7 +6,7 @@
 //
 // Created by olega on 26.01.2024.
 //
-char string[] = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+char string[] = //"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
                "  <xs:complexType name=\"openAttrs\">\n"
                "    <xs:complexContent>\n"
                "      <xs:restriction base=\"xs:anyType\">\n"
@@ -1745,11 +1745,13 @@ struct link{
     int value;
 };
 
+int q = 1;
+
 void parse(){
     int j=0;
-    int level=-1;
+    int level=0;
     struct link* fn = &(struct link){0,6};
-    for(int i=0; i<500/*2716*/; i++){
+    for(int i=0; i<2707/*2716*/; i++){
         char que[MAX]={0};
         int ind=0;
         if(string[j]=='\n'){
@@ -1769,7 +1771,9 @@ void parse(){
         }
         counter/=2;
         j--;
+        int value = 0;
         if(counter<level){
+            value = ++q;
             while(counter!=level){
                 level--;
                 struct link* copy = fn;
@@ -1794,9 +1798,12 @@ void parse(){
                 j++;
         j++;
         que[ind++]='>';
-        //printf("%s\n", que);
         if((int)(que[0])!=0){
-            int ret = func(que, ind, fn->parent->value);
+            if(i==334){
+                printf("123");
+            }
+
+            int ret = func(que, ind, fn->parent->value, value);
             fn->value=ret;
         }
 

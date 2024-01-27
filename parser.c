@@ -4,6 +4,8 @@
 
 #include "parser.h"
 
+int sizeOfMapInInt = 0;
+
 void resizeMap(){
     struct schema* nw = malloc(sizeof(struct schema)*sizeOfMap*2);
     for(int i=0; i<sizeOfMap; i++){
@@ -18,28 +20,28 @@ void initMap(){
     mainTypes=6;
     if(!rootSegment[3])sizeOfMap=sizeof(struct schema)*8;
     else sizeOfMap=rootSegment[3];
-    if(!rootSegment[4])numOfSchemas=mainTypes;
+    if(!rootSegment[4])numOfSchemas=6;
     else numOfSchemas=rootSegment[4];
+    if(!rootSegment[5])sizeOfMapInInt=19;
+    else sizeOfMapInInt=rootSegment[5];
     map = malloc(sizeof(struct schema)*sizeOfMap);
-    map[0]=(struct schema){3,0,"Int"};
-    map[1]=(struct schema){5,1,"Float"};
-    map[2]=(struct schema){3,2,"Str"};
-    map[3]=(struct schema){4,3, "Bool"};
-    map[4]=(struct schema){4,4, "ROOT"};
-    map[5]=(struct schema){4,5, "NODE"};
+    map[0]=(struct schema){3,"Int"};
+    map[1]=(struct schema){5,"Float"};
+    map[2]=(struct schema){3, "Str"};
+    map[3]=(struct schema){4, "Bool"};
+    map[4]=(struct schema){4, "ROOT"};
+    map[5]=(struct schema){4, "NODE"};
     int i=0, ind=mainTypes;
     while(ind<numOfSchemas){
-        int* addrOfMap = addr+ getAddr(rootSegment[0]+rootSegment[1]*sizeofPiramidStruct())+i;
-        map[ind].nameSize=addrOfMap[0];
-        map[ind].type=addrOfMap[1];
+        int* addrOfMap = addr+ getAddr(rootSegment[0]/*+rootSegment[1]*sizeofPiramidStruct()*/)+i;
+        map[ind].s=addrOfMap[0];
         addrOfMap[0]=0;
-        addrOfMap[1]=0;
-        map[ind].name = malloc(sizeof(char)*map[ind].nameSize);
-        for(int j=0; j<map[ind].nameSize; j++){
-            map[ind].name[j]=*((char*)(addrOfMap+sizeof(int)*2)+j);
-            *((char*)(addrOfMap+sizeof(int)*2)+j)=0;
+        map[ind].name = malloc(sizeof(char)*map[ind].s);
+        for(int j=0; j<map[ind].s; j++){
+            map[ind].name[j]=*((char*)(addrOfMap+sizeof(int))+j);
+            *((char*)(addrOfMap+sizeof(int))+j)=0;
         }
-        i+=sizeof(int)*2 +dataSizeInt(map[ind].nameSize);
+        i+=sizeof(int)+dataSizeInt(map[ind].s);
         ind++;
     }
     rootSegment[3]=sizeOfMap;
@@ -55,7 +57,7 @@ void addType(const char* str, int type, struct answer* a){
     char* name = malloc(sizeof(char)*nameSize);
     while(str[i]!=' '){name[i-j]=str[i]; i++; }
     for(int l=mainTypes; l<numOfSchemas; l++){
-        if(map[l].nameSize==nameSize){
+        if(map[l].s==nameSize){
             int b=1;
             for(int l2=0; l2<nameSize; l2++){
                 if(*(((char*)map[l].name)+l2) != *(((char*)name)+l2))b=0;
@@ -73,10 +75,73 @@ void addType(const char* str, int type, struct answer* a){
         }
     }
     if(numOfSchemas==sizeOfMap)resizeMap();
-    map[numOfSchemas++]=(struct schema){nameSize,type, name};
+    map[numOfSchemas++]=(struct schema){nameSize, name};
+    sizeOfMapInInt+=2 + dataSizeInt(nameSize);
     a->success=1;
     a->index=numOfSchemas-1;
 }
+
+//void addObjByType(const char* in, int parent, int type){
+//    int j=0;
+//    int linkMap[map[type].size];
+//    int dataSize=0;
+//    int linkSize=0;
+//    char* data = malloc(sizeof(char)*64); // 64=4*16 благодаря ограничению на кол-во детей
+//    int j2 = j;
+//    for(int i1=0; i1<map[type].size; i1++){
+//        if(map[type].types[i1]<=3) {
+//            while(in[j2++]!=':');
+//            j2++;
+//            while(in[++j2]!='\"')dataSize++;
+//        }
+//        else{
+//            int b=1;
+//            for(int j1=0; j1<map[type].nameSizes[i1]; j1++){
+//                char string[] = "String";
+//                if(map[type].typesName[i1][j1]!=string[j1])b=0;
+//            }
+//            if(b)dataSize+=map[type].size;
+//            else linkMap[linkSize++]=j;
+//
+//        }
+//    }
+//
+//    int dataCounter=0;
+//    for(int l=0; l<map[type].size; l++){
+//
+//
+//
+//        while(in[j++]!=':');
+//        j++;
+//        if(in[j++]=='{'){
+//            int count=1;
+//            while(count){
+//                if(in[j]=='{')count++;
+//                if(in[j]=='}')count--;
+//                j++;
+//            }
+//        }
+//
+//        int b=1;
+//
+//        for(int j1=0; j1<map[type].nameSizes[l]; j1++){
+//            char string[] = "String";
+//            if(map[type].typesName[l][j1]!=string[j1])b=0;
+//        }
+//
+//        if(map[type].types[l]<4 || b){
+//            while(in[j]!='\"'){
+//                data[dataCounter++]=in[j++];
+//            }
+//        }
+//    }
+//
+//    addChild(parent,addr,dataSize,type,data,start);
+//    int thisObj = *(addr+parent+sizeofBody()+((struct body*)addr+parent)->numOfChildren);
+//    for(int l=0; l<linkSize; l++){
+//        addObj(addr,map,mapSize,in+linkMap[l],thisObj,start);
+//    }
+//}
 
 int checkType(int type, const char* in, int size, struct answer* a){
     switch (type) {
@@ -158,13 +223,58 @@ int checkType(int type, const char* in, int size, struct answer* a){
     return 1;
 }
 
+//void addObj(const char* in, struct answer* a){
+//    int i=0;
+//    int j=i;
+//    while(in[++j]!=' ');
+//    int type = -1;
+//    for(int l=0; l<numOfSchemas; l++){
+//        if(map[l].s == j-i) {
+//            int b=1;
+//            for (int l2 = 0; l2 < j - i; l2++) {
+//                if (map[l].name[l2] != in[i + l2])b=0;
+//            }
+//            if(b){
+//                type=l;
+//                break;
+//            }
+//        }
+//    }
+//    if(type==-1){
+//        addType(in, a);
+//    }
+//    while(in[i++]!='(');
+//    if((int)in[i]<48 || (int)in[i]>=58){
+//        char* result = "ADDING OBJECT: WRONG PARENT NUMBER\n";
+//        int n=0;
+//        while(result[n]!='\n'){
+//            a->sentence[n]=result[n];
+//            n++;
+//        }
+//        return;
+//    }
+//    int s=(int)in[i]-48;
+//    while(in[++i]!=',')s=s*10+(int)in[i]-48;
+//    int num=0;
+//    while(in[++i]!=')')num=num*10+(int)in[i]-48;
+//    j=++i;
+//    while(in[++j]!=';');
+//    int ind;
+//    if(type<4){
+//        if(! checkType(type, &in[i+1],j-i-1, a))return;
+//        ind = addChild(s,num,j-i-1,type,&in[i+1], a);
+//    }
+//    else ind = addChild(s,num,0,  type,"", a);
+//    if(ind!=-1)a->success=1;
+//    a->index=ind;
+//}
 void addObj(const char* in, struct answer* a, int updOrIns){
     int i=0;
     int j=i;
     while(in[++j]!=' ');
     int type = -1;
     for(int l=0; l<numOfSchemas; l++){
-        if(map[l].nameSize == j-i) {
+        if(map[l].s == j-i) {
             int b=1;
             for (int l2 = 0; l2 < j - i; l2++) {
                 if (map[l].name[l2] != in[i + l2])b=0;
@@ -193,7 +303,8 @@ void addObj(const char* in, struct answer* a, int updOrIns){
         while(in[++i]!=',')num=num*10+(int)in[i]-48;
     }
     else{
-        num = addChildPlace(s);
+        struct body* addrOfStartParent= (struct body *) (addr + s);
+        num =  addrOfStartParent->numOfChildren;
     }
     int typeVal=0;
     while(in[++i]!=')')typeVal=typeVal*10+(int)in[i]-48;
@@ -242,7 +353,7 @@ void findInformation(const char* in, struct answer* a){
     while(in[++j]!=' ');
     int type = -1;
     for(int l=0; l<sizeOfMap; l++){
-        if(map[l].nameSize == j-i) {
+        if(map[l].s == j-i) {
             int b=1;
             for (int l2 = 0; l2 < j - i; l2++) {
                 if (map[l].name[l2] != in[i + l2])b=0;
@@ -291,13 +402,15 @@ void findInformation(const char* in, struct answer* a){
                     j2++;
                 }
                 if(s>=elem.numOfChildren){
-                    char* result = "FINDING INFO: WRONG ATTRIBUTE NUMBER\n";
-                    int n=0;
-                    while(result[n]!='\n'){
-                        a->sentence[n]=result[n];
-                        n++;
-                    }
-                    return;
+                    b=0;
+                    break;
+//                    char* result = "FINDING INFO: WRONG ATTRIBUTE NUMBER\n";
+//                    int n=0;
+//                    while(result[n]!='\n'){
+//                        a->sentence[n]=result[n];
+//                        n++;
+//                    }
+//                    return;
                 }
                 int sym = j2;
                 while(in[j2]!=')' && in[j2]!=',')j2++;
@@ -321,14 +434,13 @@ void saveMap(){
     rootSegment[4]=numOfSchemas;
     int i=0, ind=mainTypes;
     while(ind<rootSegment[4]){
-        int* addrOfMap = addr+ getAddr(rootSegment[0]+rootSegment[1]*sizeofPiramidStruct())+i;
-        addrOfMap[0]=map[ind].nameSize;
-        addrOfMap[1]=map[ind].type;
-        for(int j=0; j<map[ind].nameSize; j++){
-            *((char*)(addrOfMap + sizeof(int)*2)+j)=*(((char*)map[ind].name)+j);
+        int* addrOfMap = addr+ getAddr(rootSegment[0]/*+rootSegment[1]*sizeofPiramidStruct()*/)+i;
+        addrOfMap[0]=map[ind].s;
+        for(int j=0; j<map[ind].s; j++){
+            *((char*)(addrOfMap+sizeof(int))+j)=*((char*)map[ind].name+j);
         }
         free(map[ind].name);
-        i+=sizeof(int)*2 + dataSizeInt(map[ind].nameSize);
+        i+=sizeof(int)+dataSizeInt(map[ind].s);
         ind++;
     }
     free(map);
@@ -338,11 +450,9 @@ void printMap(struct answer* a){
     for(int i=0; i<numOfSchemas; i++) {
         intInAnswer(i,a);
         a->sentence[a->sizeOfAnswer++]='-';
-        for (int j = 0; j < map[i].nameSize; j++) {
+        for (int j = 0; j < map[i].s; j++) {
             a->sentence[a->sizeOfAnswer++]=map[i].name[j];
         }
-        a->sentence[a->sizeOfAnswer++]=':';
-        intInAnswer(map[i].type, a);
         a->sentence[a->sizeOfAnswer++]='\n';
     }
 }

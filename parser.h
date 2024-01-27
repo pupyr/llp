@@ -13,8 +13,7 @@
 #include "transport.h"
 
 struct schema{
-    int nameSize;
-    int type;
+    int s;
     char* name;
 };
 
@@ -23,6 +22,7 @@ int sizeOfMap;
 int numOfSchemas;
 int mainTypes;
 
+void addType(const char* str, int type, struct answer* a);
 void addObj(const char* in, struct answer* a, int updOrIns);
 void findInformation(const char* in, struct answer* a);
 void initMap();

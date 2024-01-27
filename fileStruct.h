@@ -5,7 +5,7 @@
 #ifndef LLP_FILESTRUCT_H
 #define LLP_FILESTRUCT_H
 
-#define NCOC 16 //normal count of children
+#define NCOC 16
 
 #include <stdio.h>
 #include <stddef.h>
@@ -14,11 +14,11 @@
 
 struct header{
     int sizeOfFile;
-    //int sizeOfAlloc;
     int sizeOfPiramid;
     int numPiramidElem;
     int sizeOfMap;
     int numOfMapSchemas;
+    int sizeOfMapInInt;
 };
 
 struct body{

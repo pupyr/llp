@@ -1,5 +1,7 @@
 #include "server.h"
 
+int b=0;
+
 void func(int connfd)
 {
     int exitStatus=1;
@@ -8,7 +10,7 @@ void func(int connfd)
         recv(connfd, (char*)&q, MAX,0);
         char str[MAX]={0};
         int n=0;
-        for(int i=0; i<8; i++){
+        for(int i=0; i<100; i++){
             if((int)q.target[i]==0)break;
             str[n++]=q.target[i];
         }
@@ -34,14 +36,21 @@ void func(int connfd)
             fileName[i]=q.nameFile[i];
         }
         getAddressOfMapping(fileName);
+        if(!addr[0])
+            init();
         initPiramid();
-        if(!addr[0])init();
         initMap();
-        printf("1");
-        struct answer a = (struct answer){0,0,0,{0}};
+        struct answer a = (struct answer){0,0,0,0,{0}};
         switch (q.type) {
             case 0:{
                 addObj(str, &a,0);
+//                struct answer a2 = (struct answer){0,0,0,0,{0}};
+//                printer(&a2);
+//                //printPiramid(&a2);
+//                printMap(&a2);
+//                for(int i=0; i<a2.sizeOfAnswer; i++){
+//                    printf("%c",a2.sentence[i]);
+//                }
                 break;
             }
             case 1:{
@@ -55,7 +64,7 @@ void func(int connfd)
                         if((int)q.args[i][j]==0)break;
                         s = s*10+(int)q.args[i][j]-48;
                     }
-                    dropChild(s, &a);
+                    removeChild(s, &a);
                 }
                 break;
             }
@@ -65,30 +74,33 @@ void func(int connfd)
             }
             case 4:{
                 printer(&a);
-                printf("1");
-                printPiramid(&a);
-                printf("1");
+                //printPiramid(&a);
                 printMap(&a);
                 break;
             }
             case 5:{
+                struct answer a2 = (struct answer){0,0,0,0,{0}};
+                //printer(&a2);
+                //printMap(&a2);
+                findInformation("<xs:restrictionbase=\"xs:noFixedFacet\"> (1=341);",&a2);
+                for(int i=0; i<a2.sizeOfAnswer; i++){
+                    printf("%c",a2.sentence[i]);
+                }
                 exitStatus=0;
                 break;
             }
             default:
                 printf("UNKNOWN COMAND\n");
         }
-        printf("1");
-        saveAlloc();
-        printf("1");
+
+//        saveAlloc();
         saveMap();
-        printf("1");
         saveFile();
-        printf("1");
         send(connfd, (char*)&a, MAX,0);
     }
 }
 
+// Driver function
 int main()
 {
 
@@ -136,7 +148,8 @@ int main()
         printf("server accept the client...\n");
 
     func(connfd);
-
+    remove("text.txt");
     closesocket(sock);
     WSACleanup();
+    return 0;
 }

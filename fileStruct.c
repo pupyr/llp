@@ -14,31 +14,34 @@ int dataSizeInt(int sizeOfData){
 }
 
 int getAddr(int elem){
-    if (curSegment != (int)(elem/0x00010000)){
+    if (curSegment != (int)(elem/(sizeOfMapping/4))){
         if(curSegment!=0)UnmapViewOfFile(addr);
         readSegment(elem, &addr);
     }
-    return elem%0x00010000;
+    curSegment=(int)(elem/(sizeOfMapping/4));
+    return elem%(sizeOfMapping/4);
 }
 
 int getParAddr(int elem){
-    if (curParSegment != (int)(elem/0x00010000)){
+    if (curParSegment != (int)(elem/(sizeOfMapping/4))){
         if(curParSegment!=0)UnmapViewOfFile(addrParent);
         readSegment(elem, &addrParent);
     }
-    return elem%0x00010000;
+    curParSegment=(int)(elem/(sizeOfMapping/4));
+    return elem%(sizeOfMapping/4);
 }
 
 int getChildAddr(int elem){
-    if (curChildSegment != (int)(elem/0x00010000)){
+    if (curChildSegment != (int)(elem/(sizeOfMapping/4))){
         if(curChildSegment!=0)UnmapViewOfFile(addrChild);
         readSegment(elem, &addrChild);
     }
-    return elem%0x00010000;
+    curChildSegment=(int)(elem/(sizeOfMapping/4));
+    return elem%(sizeOfMapping/4);
 }
 
 void serialize(int* addrTo,struct body* elem){
-    int mass[7]={elem->sizeOfElem,elem->type,elem->numOfChildren,elem->sizeOfElem,elem->parent,elem->data ,elem->dataSize};
+    int mass[7]={elem->sizeOfElem,elem->type,elem->numOfChildren,elem->maxSizeChildren,elem->parent,elem->data ,elem->dataSize};
     for(int i=0; i<7; i++) {
         *(addrTo + i) = mass[i];
     }
@@ -48,18 +51,56 @@ void deserialize(const int* addrOut, struct body* elem){
     elem->sizeOfElem=addrOut[0];
     elem->type=addrOut[1];
     elem->numOfChildren=addrOut[2];
-    elem->sizeOfElem=addrOut[3];
+    elem->maxSizeChildren=addrOut[3];
     elem->parent=addrOut[4];
     elem->data=addrOut[5];
     elem->dataSize=addrOut[6];
 }
 
 void init(){
-    struct body root = (struct body){sizeofBody()+NCOC,4,0,16,0,sizeofBody()+NCOC, 0};
-    *rootSegment = sizeofHeader()+sizeofBody()+NCOC;
+    struct body root = (struct body){sizeofBody()+256,4,0,64,0,sizeofBody()+256, 0};
+    *rootSegment = sizeofHeader()+sizeofBody()+256;
     serialize(addr+sizeofHeader(), &root);
     addBucket(sizeofHeader());
-    addBucket(sizeofBody()+NCOC);
+    addBucket(sizeofBody()+256);
+}
+
+int resizeChildrenSize(int elem){
+    int newAddr = getAddr(elem);
+    struct body* this = (struct body*)(addr+ newAddr);
+    int sizeOfDataInInt = dataSizeInt(this->dataSize);
+    int addrOfStartElem= addBucket(sizeofBody()+sizeOfDataInInt+this->maxSizeChildren*2);
+    int newParAddr = getParAddr(this->parent);
+    struct body* par = (struct body*)(addr+ newParAddr);
+    for(int i=0; i<par->numOfChildren; i++){
+        if(*(addrParent + newParAddr+sizeofBody()+i)==elem){
+            *(addrParent + newParAddr+sizeofBody()+i) = addrOfStartElem;
+            break;
+        }
+    }
+
+    for(int i=0; i<this->numOfChildren; i++){
+        int newChildAddr =getChildAddr(*(((int*)this)+sizeofBody()+i));
+        ((struct body*)(addrChild+newChildAddr))->parent= addrOfStartElem;
+    }
+    newAddr = getAddr(addrOfStartElem);
+    struct body* new = (struct body*) (addr+ newAddr);
+    *new = *this;
+    new->data+=this->maxSizeChildren;
+    new->sizeOfElem+=this->maxSizeChildren;
+    new->maxSizeChildren*=2;
+    for(int i=0; i<this->numOfChildren; i++){
+        *(((int*)new)+sizeofBody()+i) = *(((int*)this)+sizeofBody()+i);
+        *(((int*)this)+sizeofBody()+i)=0;
+    }
+    for(int i=0; i<this->sizeOfElem-this->data; i++){
+        *(((int*)new)+sizeofBody()+new->maxSizeChildren+i)=*(((int*)this)+sizeofBody()+this->maxSizeChildren+i);
+        *(((int*)this)+sizeofBody()+this->maxSizeChildren+i)=0;
+    }
+//    addPiramidElem(this->sizeOfElem, elem);
+    *this = (struct body){0};
+    *rootSegment+=new->sizeOfElem;
+    return addrOfStartElem;
 }
 
 int addChild(int parent, int numOfChildren, int sizeOfData,int type, const char data[sizeOfData], struct answer* a){
@@ -69,26 +110,31 @@ int addChild(int parent, int numOfChildren, int sizeOfData,int type, const char 
         while(result[n]!='\n')a->sentence[a->sizeOfAnswer++]=result[n++];
         return -1;
     }
-    int* addrOfStartParent=addr + getParAddr(parent);
-    if(((struct body*) addrOfStartParent)->sizeOfElem<=numOfChildren){
-        char* result = "ADDING OBJECT: PARENT HASN'T SO MANY CHILDREN\n";
-        int n=0;
-        while(result[n]!='\n')a->sentence[a->sizeOfAnswer++]=result[n++];
-        return -1;
-    }
+    int newParAddr = getParAddr(parent);
+    int* addrOfStartParent=addrParent + newParAddr;
+    struct body* par = ((struct body*)addrOfStartParent);
+//    if(par->maxSizeChildren<=numOfChildren){
+//        parent = resizeChildrenSize(parent);
+//        a->reserveIndex=parent;
+//        addrOfStartParent = addrParent + newParAddr;
+//        par = ((struct body*)addrOfStartParent);
+//    }
 
-    if(*(addrOfStartParent+sizeofBody()+numOfChildren))removeChild(*(addrOfStartParent+sizeofBody()+numOfChildren), a);
-    ((struct body*)addrOfStartParent)->numOfChildren++;
+//    if(*(addrOfStartParent+sizeofBody()+numOfChildren)) {
+//        dropChild(*(addrOfStartParent + sizeofBody() + numOfChildren), a);
+//    }
+    par->numOfChildren++;
     int sizeOfDataInInt = dataSizeInt(sizeOfData);
     int addrOfStartElem= addBucket(sizeofBody()+sizeOfDataInInt+NCOC);
+
     *(addrOfStartParent+sizeofBody()+numOfChildren)=addrOfStartElem;
 
-
-    serialize(addr+getAddr(addrOfStartElem),&(struct body)
+    int newAddr = getAddr(addrOfStartElem);
+    serialize(addr+newAddr,&(struct body)
             {sizeofBody()+sizeOfDataInInt+NCOC,type,0,
-                    16, parent, sizeofBody()+NCOC, sizeOfData});
+             NCOC, parent, sizeofBody()+NCOC, sizeOfData});
 
-    char* startData = (char*)(addr+ getAddr(addrOfStartElem)+sizeofBody()+NCOC);
+    char* startData = (char*)(addr+ newAddr+sizeofBody()+NCOC);
     for(char i=0; i<(char)sizeOfData; i++){
         *(startData+i)=*(data+i);
     }
@@ -104,14 +150,16 @@ int addChildPlace(int parent){
 
 
 void dropChild(int elem, struct answer* a){
-    struct body* obj= (struct body *) (addr + getAddr(elem));
+    int newAddr = getAddr(elem);
+    struct body obj= *((struct body* ) (addr + newAddr));
+    int newParAddr = getParAddr(obj.parent);
     removeChild(elem, a);
-    struct body* prn = (struct body*) (addr+getParAddr(obj->parent));
+    struct body* prn = (struct body*) (addr+getParAddr(obj.parent));
     for(int i=0; i<prn->numOfChildren; i++){
-        if(*(addr+getParAddr(obj->parent)+sizeofBody()+i)==elem){
+        if(*(addrParent + newParAddr+sizeofBody()+i)==elem){
             prn->numOfChildren--;
-            *(addr+getParAddr(obj->parent)+sizeofBody()+i)=*(addr+getParAddr(obj->parent)+sizeofBody()+prn->numOfChildren);
-            *(addr+getParAddr(obj->parent)+sizeofBody()+prn->numOfChildren)=0;
+            *(addrParent + newParAddr+sizeofBody()+i)=*(addrParent + newParAddr+sizeofBody()+prn->numOfChildren);
+            *(addrParent + newParAddr+sizeofBody()+prn->numOfChildren)=0;
             break;
         }
     }
@@ -120,23 +168,24 @@ void dropChild(int elem, struct answer* a){
 
 
 void removeChild(int elem, struct answer* a){
-
-    struct body* obj= (struct body *) (addr + getAddr(elem));
+    int newAddr=getAddr(elem);
+    struct body* obj= (struct body *) (addr + newAddr);
     for(int i=0; i<obj->numOfChildren; i++){
-        removeChild(*(addr+getAddr(elem)+sizeofBody()+i), a);
-        *(addr+getAddr(elem)+sizeofBody()+i)=0;
+        removeChild(*(addr+newAddr+sizeofBody()+i), a);
+        *(addr+newAddr+sizeofBody()+i)=0;
     }
     for(int i=obj->data; i<obj->sizeOfElem; i++){
-        *(addr + getAddr(elem) + i) = 0;
+        *(addr + newAddr + i) = 0;
     }
-    addPiramidElem( obj->sizeOfElem,elem);
+//    addPiramidElem( obj->sizeOfElem,elem);
     *obj=(struct body){0,0,0,0,0, 0};
     a->success=1;
     a->index=elem;
 }
 
 void printOneElem(struct body elem, int i, struct answer* a){
-    deserialize(addr+getAddr(i), &elem);
+    int newAddr = getAddr(i);
+    deserialize(addr+newAddr, &elem);
     char* result = "element , sizeoOfElem , type , numOfChild , parent , data , dataSize\n";
     int n=0;
     while(result[n]!='\n')a->sentence[a->sizeOfAnswer++]=result[n++];
@@ -149,7 +198,7 @@ void printOneElem(struct body elem, int i, struct answer* a){
     a->sentence[a->sizeOfAnswer++]='|';
     intInAnswer(elem.numOfChildren,a);
     a->sentence[a->sizeOfAnswer++]='|';
-    intInAnswer(elem.sizeOfElem,a);
+    intInAnswer(elem.maxSizeChildren,a);
     a->sentence[a->sizeOfAnswer++]='|';
     intInAnswer(elem.parent,a);
     a->sentence[a->sizeOfAnswer++]='|';
@@ -161,8 +210,10 @@ void printOneElem(struct body elem, int i, struct answer* a){
     n=0;
     while(result[n]!='\n')a->sentence[a->sizeOfAnswer++]=result[n++];
     for(int j=0;j<elem.numOfChildren; j++ ){
-        if(*(addr+getAddr(i)+sizeofBody()+j)){
-            intInAnswer(*(addr+getAddr(i)+sizeofBody()+j),a);
+        if(*(addr+newAddr+sizeofBody()+j)){
+            intInAnswer(j,a);
+            a->sentence[a->sizeOfAnswer++]=':';
+            intInAnswer(*(addr+newAddr+sizeofBody()+j),a);
             a->sentence[a->sizeOfAnswer++]='\n';
         }
         else {
@@ -176,7 +227,7 @@ void printOneElem(struct body elem, int i, struct answer* a){
     n=0;
     while(result[n]!='\n')a->sentence[a->sizeOfAnswer++]=result[n++];
     a->sentence[a->sizeOfAnswer++]='\n';
-    int* startData = addr+getAddr(i);
+    int* startData = addr+newAddr;
     for(char* j= (char *) (startData + elem.data); j < (char*) (startData + elem.sizeOfElem); j++) {
         a->sentence[a->sizeOfAnswer++]=*j;
     }
@@ -187,12 +238,14 @@ void printer(struct answer* a){
     int sizeOfFile = rootSegment[0];
     int i=sizeofHeader();
     while(i<sizeOfFile){
-        while(!*(addr+getAddr(i))){
+        int newAddr=getAddr(i);
+        while(!*(addr+newAddr)){
             i++;
+            newAddr=getAddr(i);
             if(i>=sizeOfFile) return;
         }
         struct body elem={0};
-        deserialize(addr+getAddr(i), &elem);
+        deserialize(addr+newAddr, &elem);
         printOneElem(elem,i, a);
         i+=elem.sizeOfElem;
     }

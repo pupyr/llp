@@ -6,7 +6,7 @@
 #define LLP_READER_H
 #include <Windows.h>
 #include <winbase.h>
-
+long long int sizeOfMapping;
 int* addr;
 int* addrParent;
 int* addrChild;
